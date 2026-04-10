@@ -1,0 +1,100 @@
+<div class="page-back">
+  <%= link_to "← Dashboard", root_path %>
+</div>
+
+<%# ── Customer Context Header ─────────────────────────────── %>
+<div class="customer-context-header">
+  <div class="context-identity">
+    <h1><%= @customer.name %></h1>
+    <fluent-badge appearance="<%= @customer.strategic? ? 'accent' : 'neutral' %>">
+      <%= @customer.segment.upcase %>
+    </fluent-badge>
+    <fluent-badge style="--badge-fill-color: #d13438; --badge-color: white;">ON HOLD</fluent-badge>
+  </div>
+
+  <div class="context-metrics">
+    <div class="ctx-metric">
+      <span class="ctx-label">Credit Limit</span>
+      <span class="ctx-value"><%= number_to_currency(@profile.credit_limit, precision: 0) %></span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Total Exposure</span>
+      <span class="ctx-value danger"><%= number_to_currency(@total_exposure, precision: 0) %></span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Overdue Invoices</span>
+      <span class="ctx-value danger"><%= number_to_currency(@overdue_amount, precision: 0) %></span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Utilization</span>
+      <span class="ctx-value <%= @utilization_pct >= 100 ? 'danger' : @utilization_pct >= 80 ? 'warning' : '' %>">
+        <%= @utilization_pct %>%
+      </span>
+    </div>
+  </div>
+</div>
+
+<%# ── Pending Orders ──────────────────────────────────────── %>
+<div class="section-heading">
+  <h2>Pending Orders</h2>
+  <span class="section-count"><%= @pending_orders.size %> awaiting review</span>
+</div>
+
+<% if @pending_orders.any? %>
+  <div class="order-list">
+    <% @pending_orders.each do |order| %>
+      <fluent-card class="order-card">
+
+        <div class="order-header">
+          <div class="order-meta">
+            <span class="order-id">Order #<%= order.id %></span>
+            <span class="order-date"><%= order.order_date.strftime("%b %-d, %Y") %></span>
+          </div>
+          <div class="order-total"><%= number_to_currency(order.total_amount, precision: 0) %></div>
+        </div>
+
+        <%# Line items %>
+        <table class="line-items-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th class="text-right">Qty</th>
+              <th class="text-right">Unit Price</th>
+              <th class="text-right">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% order.sales_order_lines.each do |line| %>
+              <tr>
+                <td><%= line.product.name %></td>
+                <td class="text-right"><%= line.quantity %></td>
+                <td class="text-right"><%= number_to_currency(line.unit_price, precision: 0) %></td>
+                <td class="text-right"><%= number_to_currency(line.quantity * line.unit_price, precision: 0) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <%# Actions %>
+        <div class="order-actions">
+          <%= link_to root_path, class: "keep-hold-link" do %>
+            <fluent-button appearance="outline">Keep on Hold</fluent-button>
+          <% end %>
+          <%= button_to "Approve & Release",
+                release_sales_order_path(order),
+                method: :patch,
+                class: "release-form",
+                form: { data: { turbo_confirm: "Release this order for #{@customer.name}? This cannot be undone." } } %>
+        </div>
+
+      </fluent-card>
+    <% end %>
+  </div>
+
+<% else %>
+  <div class="empty-state">
+    <h2>No pending orders</h2>
+    <p>All orders for <%= @customer.name %> have been reviewed.</p>
+    <%= link_to "← Back to Dashboard", root_path %>
+  </div>
+<% end %>

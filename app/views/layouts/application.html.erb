@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Credit Hold Demo" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <script type="module">
+      import { provideFluentDesignSystem, allComponents } from "https://esm.sh/@fluentui/web-components@2.6.1?bundle";
+      provideFluentDesignSystem().register(allComponents);
+    </script>
+  </head>
+
+  <body>
+    <header class="app-header">
+      <div class="app-header-inner">
+        <span class="app-title">Credit Hold Demo</span>
+        <nav class="app-nav">
+          <a href="/" class="<%= 'active' if controller_name == 'dashboard' %>">Dashboard</a>
+        </nav>
+        <div class="app-user">
+          <span>Alice Chen</span>
+          <fluent-badge appearance="neutral">Credit Manager</fluent-badge>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <% if notice.present? %>
+        <div class="flash flash-notice"><%= notice %></div>
+      <% end %>
+      <%= yield %>
+    </main>
+  </body>
+</html>

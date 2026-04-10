@@ -1,0 +1,94 @@
+<div class="page-header">
+  <h1>Credit Hold Dashboard</h1>
+  <p>Customers currently blocked from order processing — requires manual review</p>
+</div>
+
+<%# ── Summary Stats ──────────────────────────────────────── %>
+<div class="stats-row">
+  <fluent-card class="stat-card">
+    <div class="stat-number"><%= @summary[:count] %></div>
+    <div class="stat-label">Customers on Hold</div>
+  </fluent-card>
+
+  <fluent-card class="stat-card">
+    <div class="stat-number danger"><%= number_to_currency(@summary[:total_overdue], precision: 0) %></div>
+    <div class="stat-label">Total Overdue</div>
+  </fluent-card>
+
+  <fluent-card class="stat-card">
+    <div class="stat-number"><%= @summary[:total_pending_orders] %></div>
+    <div class="stat-label">Orders Pending Review</div>
+  </fluent-card>
+</div>
+
+<%# ── Held Customer Cards ────────────────────────────────── %>
+<% if @held_customers.any? %>
+  <div class="customer-list">
+    <% @held_customers.each do |row| %>
+      <%
+        util = row[:utilization_pct]
+        util_class = util >= 100 ? "high" : util >= 80 ? "medium" : "low"
+        util_width  = [util, 100].min
+      %>
+      <fluent-card class="customer-card">
+        <div class="customer-card-inner">
+
+          <%# Left: identity %>
+          <div class="customer-identity">
+            <%= link_to customer_path(row[:customer]), class: "customer-name-link" do %>
+              <div class="customer-name"><%= row[:customer].name %></div>
+            <% end %>
+            <fluent-badge appearance="<%= row[:customer].strategic? ? 'accent' : 'neutral' %>">
+              <%= row[:customer].segment.upcase %>
+            </fluent-badge>
+          </div>
+
+          <%# Middle: metrics %>
+          <div class="metrics-grid">
+            <div class="metric">
+              <span class="metric-label">Credit Limit</span>
+              <span class="metric-value"><%= number_to_currency(row[:profile].credit_limit, precision: 0) %></span>
+            </div>
+
+            <div class="metric">
+              <span class="metric-label">Total Exposure</span>
+              <span class="metric-value danger"><%= number_to_currency(row[:total_exposure], precision: 0) %></span>
+              <div class="util-section">
+                <div class="util-bar">
+                  <div class="util-fill <%= util_class %>" style="width: <%= util_width %>%"></div>
+                </div>
+                <div class="util-pct"><%= util %>% of limit</div>
+              </div>
+            </div>
+
+            <div class="metric">
+              <span class="metric-label">Overdue Invoices</span>
+              <span class="metric-value danger"><%= number_to_currency(row[:overdue_amount], precision: 0) %></span>
+            </div>
+
+            <div class="metric">
+              <span class="metric-label">Open Invoices</span>
+              <span class="metric-value"><%= number_to_currency(row[:open_amount], precision: 0) %></span>
+            </div>
+          </div>
+
+          <%# Right: actions %>
+          <div class="card-actions">
+            <span class="pending-label">
+              <%= row[:pending_orders_count] %> order<%= row[:pending_orders_count] == 1 ? '' : 's' %> pending review
+            </span>
+            <%= link_to orders_customer_path(row[:customer]), style: "text-decoration: none;" do %>
+              <fluent-button appearance="accent">Review Orders</fluent-button>
+            <% end %>
+          </div>
+
+        </div>
+      </fluent-card>
+    <% end %>
+  </div>
+<% else %>
+  <div class="empty-state">
+    <h2>No customers on hold</h2>
+    <p>All customers are currently in good standing.</p>
+  </div>
+<% end %>

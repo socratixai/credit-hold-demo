@@ -1,0 +1,207 @@
+<div class="page-back">
+  <%= link_to "← Dashboard", root_path %>
+</div>
+
+<%# ── Customer Header ─────────────────────────────────────── %>
+<div class="customer-context-header">
+  <div class="context-identity">
+    <h1><%= @customer.name %></h1>
+    <fluent-badge appearance="<%= @customer.strategic? ? 'accent' : 'neutral' %>">
+      <%= @customer.segment.upcase %>
+    </fluent-badge>
+    <% if @profile.credit_hold_flag? %>
+      <fluent-badge class="badge-danger">ON HOLD</fluent-badge>
+    <% end %>
+    <% if @pending_count > 0 %>
+      <%= link_to orders_customer_path(@customer), style: "text-decoration: none;" do %>
+        <fluent-button appearance="outline" style="margin-left: 8px;">
+          Review <%= @pending_count %> Pending Order<%= @pending_count == 1 ? '' : 's' %>
+        </fluent-button>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="context-metrics">
+    <div class="ctx-metric">
+      <span class="ctx-label">Credit Limit</span>
+      <span class="ctx-value"><%= number_to_currency(@profile.credit_limit, precision: 0) %></span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Total Exposure</span>
+      <span class="ctx-value <%= @utilization_pct >= 100 ? 'danger' : '' %>">
+        <%= number_to_currency(@total_exposure, precision: 0) %>
+      </span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Overdue</span>
+      <span class="ctx-value <%= @overdue_amount > 0 ? 'danger' : '' %>">
+        <%= number_to_currency(@overdue_amount, precision: 0) %>
+      </span>
+    </div>
+    <div class="ctx-metric">
+      <span class="ctx-label">Utilization</span>
+      <span class="ctx-value <%= @utilization_pct >= 100 ? 'danger' : @utilization_pct >= 80 ? 'warning' : '' %>">
+        <%= @utilization_pct %>%
+      </span>
+    </div>
+    <% if @crm_account %>
+      <div class="ctx-metric">
+        <span class="ctx-label">Est. Annual Value</span>
+        <span class="ctx-value"><%= number_to_currency(@crm_account.estimated_annual_value, precision: 0) %></span>
+      </div>
+      <div class="ctx-metric">
+        <span class="ctx-label">Account Potential</span>
+        <span class="ctx-value"><%= @crm_account.account_potential.capitalize %></span>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Signal Tabs ─────────────────────────────────────────── %>
+<fluent-tabs>
+
+  <%# Tab labels %>
+  <fluent-tab id="tab-orders" style="margin-right: 1.5rem;">Order History</fluent-tab>
+  <fluent-tab id="tab-invoices" style="margin-right: 1.5rem;">Invoice Aging</fluent-tab>
+  <fluent-tab id="tab-interactions">Interactions</fluent-tab>
+
+  <%# ── Tab 1: Order History ─────────────────────────────── %>
+  <fluent-tab-panel id="tab-orders-panel">
+    <div class="tab-toolbar">
+      <span class="tab-count"><%= @customer.sales_orders.size %> orders total</span>
+      <%= link_to export_orders_customer_path(@customer), class: "export-link" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 4px; margin-bottom: 1px;"><path d="M8 12l-4-4h2.5V3h3v5H12L8 12zm-5 2h10v1.5H3V14z"/></svg>Export CSV
+      <% end %>
+    </div>
+
+    <table class="signal-table">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th class="text-right">Amount</th>
+          <th class="text-right">Lines</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @customer.sales_orders.sort_by(&:order_date).reverse.each do |order| %>
+          <tr>
+            <td class="mono">#<%= order.id %></td>
+            <td><%= order.order_date.strftime("%b %-d, %Y") %></td>
+            <td><span class="status-badge status-<%= order.status %>"><%= order.status.humanize %></span></td>
+            <td class="text-right"><%= number_to_currency(order.total_amount, precision: 0) %></td>
+            <td class="text-right"><%= order.sales_order_lines.size %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </fluent-tab-panel>
+
+  <%# ── Tab 2: Invoice Aging ─────────────────────────────── %>
+  <fluent-tab-panel id="tab-invoices-panel">
+    <div class="tab-toolbar">
+      <span class="tab-count"><%= @customer.invoices.size %> invoices total</span>
+      <%= link_to export_invoices_customer_path(@customer), class: "export-link" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 4px; margin-bottom: 1px;"><path d="M8 12l-4-4h2.5V3h3v5H12L8 12zm-5 2h10v1.5H3V14z"/></svg>Export CSV
+      <% end %>
+    </div>
+
+    <%# Aging buckets %>
+    <div class="aging-buckets">
+      <% [
+        { label: "Current",        key: :current,      danger: false },
+        { label: "1–30 days",      key: :days_1_30,    danger: false },
+        { label: "31–60 days",     key: :days_31_60,   danger: true  },
+        { label: "60+ days",       key: :days_60_plus, danger: true  }
+      ].each do |bucket| %>
+        <div class="aging-bucket <%= 'aging-danger' if bucket[:danger] && @aging[bucket[:key]].any? %>">
+          <div class="aging-label"><%= bucket[:label] %></div>
+          <div class="aging-amount">
+            <%= number_to_currency(@aging[bucket[:key]].sum { |i| i.total_amount - i.paid_amount }, precision: 0) %>
+          </div>
+          <div class="aging-count"><%= @aging[bucket[:key]].size %> invoice<%= @aging[bucket[:key]].size == 1 ? '' : 's' %></div>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Invoice detail table %>
+    <table class="signal-table" style="margin-top: 20px;">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Invoice Date</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th class="text-right">Total</th>
+          <th class="text-right">Paid</th>
+          <th class="text-right">Outstanding</th>
+          <th class="text-right">Days Overdue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @customer.invoices.sort_by(&:due_date).reverse.each do |inv| %>
+          <%
+            outstanding  = inv.total_amount - inv.paid_amount
+            days_overdue = inv.due_date < Date.today && !inv.paid? ? (Date.today - inv.due_date).to_i : nil
+          %>
+          <tr class="<%= 'row-danger' if inv.overdue? %>">
+            <td class="mono">#<%= inv.id %></td>
+            <td><%= inv.invoice_date.strftime("%b %-d, %Y") %></td>
+            <td><%= inv.due_date.strftime("%b %-d, %Y") %></td>
+            <td><span class="status-badge status-<%= inv.status %>"><%= inv.status.humanize %></span></td>
+            <td class="text-right"><%= number_to_currency(inv.total_amount, precision: 0) %></td>
+            <td class="text-right"><%= number_to_currency(inv.paid_amount, precision: 0) %></td>
+            <td class="text-right <%= outstanding.positive? ? 'danger' : '' %>">
+              <%= number_to_currency(outstanding, precision: 0) %>
+            </td>
+            <td class="text-right <%= days_overdue && days_overdue > 0 ? 'danger' : '' %>">
+              <%= days_overdue ? "#{days_overdue}d" : "—" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </fluent-tab-panel>
+
+  <%# ── Tab 3: Interactions ──────────────────────────────── %>
+  <fluent-tab-panel id="tab-interactions-panel">
+    <div class="tab-toolbar">
+      <span class="tab-count"><%= @customer.customer_interactions.size %> interactions logged</span>
+      <%= link_to export_interactions_customer_path(@customer), class: "export-link" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 4px; margin-bottom: 1px;"><path d="M8 12l-4-4h2.5V3h3v5H12L8 12zm-5 2h10v1.5H3V14z"/></svg>Export CSV
+      <% end %>
+    </div>
+
+    <% if @crm_account %>
+      <div class="crm-notes-box">
+        <span class="crm-notes-label">CRM Notes</span>
+        <p><%= @crm_account.notes.presence || "No notes recorded." %></p>
+      </div>
+    <% end %>
+
+    <table class="signal-table" style="margin-top: 16px;">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Sentiment</th>
+          <th>Summary</th>
+          <th>Logged By</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @customer.customer_interactions.sort_by(&:interaction_date).reverse.each do |i| %>
+          <tr>
+            <td><%= i.interaction_date.strftime("%b %-d, %Y") %></td>
+            <td><span class="status-badge type-<%= i.interaction_type %>"><%= i.interaction_type.capitalize %></span></td>
+            <td><span class="sentiment-<%= i.sentiment %>"><%= i.sentiment.capitalize %></span></td>
+            <td class="summary-cell"><%= i.summary %></td>
+            <td><%= i.actor.name %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </fluent-tab-panel>
+
+</fluent-tabs>
